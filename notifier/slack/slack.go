@@ -293,7 +293,7 @@ func buildAttachment(mbus domain.MBusMessageBody) map[string]interface{} {
 			}
 		}
 	}
-	m["text"] = mbus.Message[domain.MessageKeyMessage]
+	m["text"] = mbus.GetMessageText()
 	m["footer"] = mbus.PackageProcess
 	m["footer_icon"] = footerIcon
 	m["ts"] = mbus.EventTime / 1000

@@ -21,18 +21,28 @@
 package domain
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	log "github.com/fatima-go/fatima-log"
 )
 
 const (
-	MessageKeyType       = "type"
+	MessageKeyType       = "type"   // type : notify level
+	MessageKeyAction     = "action" // action : kind of action
 	MessageKeyAlarmLevel = "alarm_level"
 	MessageKeyCategory   = "category"
 	MessageKeyMessage    = "message"
+	MessageKeyDeployment = "deployment"
 	AlarmLevelWarn       = "WARN"
 	AlarmLevelMinor      = "MINOR"
 	AlarmLevelMajor      = "MAJOR"
+)
+
+const (
+	NotifyAlarm          = "ALARM"
+	ActionProcessStartup = "PROCESS_STARTUP"
 )
 
 type MessageNotify interface {
@@ -59,16 +69,56 @@ type MBusMessageBody struct {
 	PackageProfile string                 `json:"package_profile,omitempty"`
 }
 
-func (mbus MBusMessageBody) IsAlarm() bool {
-	switch mbus.Message[MessageKeyType] {
-	case "ALARM":
+func (m MBusMessageBody) GetMessageText() interface{} {
+	buff := bytes.Buffer{}
+	if txt, ok := m.Message[MessageKeyMessage].(string); ok {
+		buff.WriteString(txt)
+	}
+
+	if !m.IsAlarm() || !m.IsProcessStartup() {
+		return buff.String()
+	}
+
+	dep := m.GetDeployment()
+	if !dep.Valid || !dep.HasBuildInfo() {
+		return buff.String()
+	}
+
+	// xxx process started
+	// deployment : djin.chung, master, hashxxxx
+	// build message : something has fixed....
+	// fmon : https://fmon.music-flo.io/xxx
+	buff.WriteString(fmt.Sprintf("\ndeployment user : %s", dep.Build.BuildUser))
+	buff.WriteString(fmt.Sprintf("\nbuild time : %s", dep.Build.BuildTime))
+	if !dep.Build.HasGit() {
+		return buff.String()
+	}
+	buff.WriteString(fmt.Sprintf("\ngit commit : %s (%s)", dep.Build.Git.Commit, dep.Build.Git.Branch))
+	buff.WriteString(fmt.Sprintf("\ngit message : %s", GetTrimmedMessage(dep.Build.Git.Message)))
+
+	// fmon sample url : http://fmon.music-flo.io:8082/process/history?host=be01.prod&proc=kakaod
+
+	return buff.String()
+}
+
+func (m MBusMessageBody) IsAlarm() bool {
+	switch m.Message[MessageKeyType] {
+	case NotifyAlarm:
 		return true
 	}
 	return false
 }
 
-func (mbus MBusMessageBody) GetCategory() string {
-	category, ok := mbus.Message[MessageKeyCategory]
+func (m MBusMessageBody) IsProcessStartup() bool {
+	switch m.Message[MessageKeyAction] {
+	case ActionProcessStartup:
+		return true
+	}
+	return false
+}
+
+func (m MBusMessageBody) GetCategory() string {
+	category, ok := m.Message[MessageKeyCategory]
 	if !ok {
 		return ""
 	}
@@ -78,25 +128,49 @@ func (mbus MBusMessageBody) GetCategory() string {
 	return ""
 }
 
-func (mbus MBusMessageBody) getFootprint() string {
-	msg, ok := mbus.Message[MessageKeyMessage]
+func (m MBusMessageBody) getFootprint() string {
+	msg, ok := m.Message[MessageKeyMessage]
 	if !ok {
 		return ""
 	}
 
 	return fmt.Sprintf("%s.%s.%s.%s.%s.%s",
-		mbus.PackageGroup,
-		mbus.PackageHost,
-		mbus.PackageName,
-		mbus.PackageProcess,
-		mbus.PackageProfile,
+		m.PackageGroup,
+		m.PackageHost,
+		m.PackageName,
+		m.PackageProcess,
+		m.PackageProfile,
 		msg)
 }
 
-func (mbus MBusMessageBody) GetHashsum() string {
-	footprint := mbus.getFootprint()
+func (m MBusMessageBody) GetHashsum() string {
+	footprint := m.getFootprint()
 
 	hashing := sha256.New()
 	hashing.Write([]byte(footprint))
 	return fmt.Sprintf("%x", hashing.Sum(nil))
+}
+
+func (m MBusMessageBody) GetDeployment() Deployment {
+	deployment := Deployment{Valid: false}
+
+	msg, ok := m.Message[MessageKeyDeployment]
+	if !ok {
+		return deployment
+	}
+
+	b, err := json.Marshal(msg)
+	if err != nil {
+		log.Warn("fail to make deployment json : %s", err.Error())
+		return deployment
+	}
+
+	err = json.Unmarshal(b, &deployment)
+	if err != nil {
+		log.Warn("fail to unmarshal deployment : %s", err.Error())
+		return deployment
+	}
+
+	deployment.Valid = true
+	return deployment
 }
