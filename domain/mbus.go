@@ -98,7 +98,7 @@ func (m MBusMessageBody) GetMessageText(fmonUrl string) interface{} {
 
 	if len(fmonUrl) > 10 {
 		link := fmt.Sprintf(fmonUrl, m.PackageHost, m.PackageProcess)
-		buff.WriteString(fmt.Sprintf("\n<배포 히스토리 보기|%s>", link))
+		buff.WriteString(fmt.Sprintf("\n<%s|배포 히스토리 보기>\n", link))
 	}
 
 	return buff.String()
