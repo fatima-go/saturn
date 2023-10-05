@@ -26,8 +26,8 @@ import (
 	"github.com/fatima-go/fatima-core"
 	"github.com/fatima-go/fatima-log"
 	"github.com/fatima-go/saturn/domain"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -44,6 +44,7 @@ const (
 	userName                 = "FATIMA"
 	footerIcon               = "https://platform.slack-edge.com/img/default_application_icon.png"
 	applicationJsonUtf8Value = "application/json;charset=UTF-8"
+	PropertyFmonUrl          = "fmon.url"
 )
 
 func NewSlackNotification(fatimaRuntime fatima.FatimaRuntime) *SlackNotification {
@@ -57,6 +58,14 @@ func NewSlackNotificationWithKey(fatimaRuntime fatima.FatimaRuntime, key string)
 	slack.alarm.Active = false
 	slack.event.Active = false
 	slack.alarmCategory = make(map[string]SlackConfig)
+
+	// load fmon property
+	fmonUrl, err := fatimaRuntime.GetConfig().GetString(PropertyFmonUrl)
+	if err == nil {
+		slack.fmonUrl = fmonUrl
+	}
+
+	log.Info("slack.fmonUrl=[%s]", slack.fmonUrl)
 	return &slack
 }
 
@@ -67,6 +76,7 @@ type SlackNotification struct {
 	event           SlackConfig
 	alarmCategory   map[string]SlackConfig
 	mutex           *sync.Mutex
+	fmonUrl         string
 }
 
 type SlackConfig struct {
@@ -74,8 +84,12 @@ type SlackConfig struct {
 	Url    string
 }
 
+func (s *SlackNotification) GetFmonUrl() string {
+	return s.fmonUrl
+}
+
 func (s *SlackNotification) SendNotify(mbus domain.MBusMessageBody) {
-	message := buildSlackMessage(mbus)
+	message := s.buildSlackMessage(mbus)
 	cate := mbus.GetCategory()
 	if mbus.IsAlarm() {
 		s.sendAlarm(message, cate)
@@ -92,7 +106,7 @@ func (s *SlackNotification) loading() {
 	}
 
 	webhookConfigFile := filepath.Join(s.fatimaRuntime.GetEnv().GetFolderGuide().GetDataFolder(), fileWebhookSlack)
-	dataBytes, err := ioutil.ReadFile(webhookConfigFile)
+	dataBytes, err := os.ReadFile(webhookConfigFile)
 	if err != nil {
 		return
 	}
@@ -265,17 +279,17 @@ func sendMessageToSlack(url string, b []byte) {
 	}
 }
 
-func buildSlackMessage(mbus domain.MBusMessageBody) map[string]interface{} {
+func (s *SlackNotification) buildSlackMessage(mbus domain.MBusMessageBody) map[string]interface{} {
 	m := make(map[string]interface{})
 	m["username"] = userName
 	list := make([]interface{}, 0)
-	list = append(list, buildAttachment(mbus))
+	list = append(list, s.buildAttachment(mbus))
 	m["attachments"] = list
 
 	return m
 }
 
-func buildAttachment(mbus domain.MBusMessageBody) map[string]interface{} {
+func (s *SlackNotification) buildAttachment(mbus domain.MBusMessageBody) map[string]interface{} {
 	m := make(map[string]interface{})
 	m["pretext"] = buildPretext(mbus)
 	m["color"] = attachmentsColorGreen
@@ -293,7 +307,7 @@ func buildAttachment(mbus domain.MBusMessageBody) map[string]interface{} {
 			}
 		}
 	}
-	m["text"] = mbus.GetMessageText()
+	m["text"] = mbus.GetMessageText(s.GetFmonUrl())
 	m["footer"] = mbus.PackageProcess
 	m["footer_icon"] = footerIcon
 	m["ts"] = mbus.EventTime / 1000

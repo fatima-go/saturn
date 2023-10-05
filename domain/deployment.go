@@ -21,6 +21,8 @@
 package domain
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -63,20 +65,22 @@ func (d DeploymentBuildGit) String() string {
 }
 
 func GetTrimmedMessage(msg string) string {
-	msg = trimString(msg)
-	r := []rune(msg)
-	if len(r) <= 32 {
-		return msg
+	buff := bytes.Buffer{}
+	lineCount := 1
+	scanner := bufio.NewScanner(strings.NewReader(msg))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(strings.TrimSpace(line)) == 0 {
+			continue
+		}
+		buff.WriteString("\n")
+		if lineCount > 3 { // 3줄까지만 출력해 주자..
+			buff.WriteString(".....")
+			break
+		}
+		buff.WriteString(line)
+		lineCount++
 	}
-	r1 := r[:32]
-	return string(r1) + "..."
-}
 
-func trimString(msg string) string {
-	msg = strings.TrimLeft(msg, " ")
-	idx := strings.IndexAny(msg, "\r\n")
-	if idx > 0 {
-		return msg[:idx]
-	}
-	return msg
+	return buff.String()
 }

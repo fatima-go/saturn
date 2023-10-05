@@ -146,6 +146,10 @@ func (g *GrpcServer) consume(jsonString string) {
 		return
 	}
 
+	if log.IsTraceEnabled() {
+		log.Trace("%s", jsonString)
+	}
+
 	data := []byte(jsonString)
 	var message domain.MBusMessage
 	err := json.Unmarshal(data, &message)

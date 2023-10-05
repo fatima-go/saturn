@@ -69,7 +69,7 @@ type MBusMessageBody struct {
 	PackageProfile string                 `json:"package_profile,omitempty"`
 }
 
-func (m MBusMessageBody) GetMessageText() interface{} {
+func (m MBusMessageBody) GetMessageText(fmonUrl string) interface{} {
 	buff := bytes.Buffer{}
 	if txt, ok := m.Message[MessageKeyMessage].(string); ok {
 		buff.WriteString(txt)
@@ -88,7 +88,7 @@ func (m MBusMessageBody) GetMessageText() interface{} {
 	// deployment : djin.chung, master, hashxxxx
 	// build message : something has fixed....
 	// fmon : https://fmon.music-flo.io/xxx
-	buff.WriteString(fmt.Sprintf("\ndeployment user : %s", dep.Build.BuildUser))
+	buff.WriteString(fmt.Sprintf("\ndeploy user : %s", dep.Build.BuildUser))
 	buff.WriteString(fmt.Sprintf("\nbuild time : %s", dep.Build.BuildTime))
 	if !dep.Build.HasGit() {
 		return buff.String()
@@ -96,7 +96,10 @@ func (m MBusMessageBody) GetMessageText() interface{} {
 	buff.WriteString(fmt.Sprintf("\ngit commit : %s (%s)", dep.Build.Git.Commit, dep.Build.Git.Branch))
 	buff.WriteString(fmt.Sprintf("\ngit message : %s", GetTrimmedMessage(dep.Build.Git.Message)))
 
-	// fmon sample url : http://fmon.music-flo.io:8082/process/history?host=be01.prod&proc=kakaod
+	if len(fmonUrl) > 10 {
+		link := fmt.Sprintf(fmonUrl, m.PackageHost, m.PackageProcess)
+		buff.WriteString(fmt.Sprintf("\n<배포 히스토리 보기|%s>", link))
+	}
 
 	return buff.String()
 }
