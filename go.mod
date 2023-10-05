@@ -3,7 +3,7 @@ module github.com/fatima-go/saturn
 go 1.17
 
 require (
-	github.com/fatima-go/fatima-core v1.0.0
+	github.com/fatima-go/fatima-core v1.1.0
 	github.com/fatima-go/fatima-log v1.0.0
 	google.golang.org/grpc v1.54.0
 )
