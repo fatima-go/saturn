@@ -80,8 +80,9 @@ type SlackNotification struct {
 }
 
 type SlackConfig struct {
-	Active bool
-	Url    string
+	Active  bool
+	Url     string
+	Channel string
 }
 
 func (s *SlackNotification) GetFmonUrl() string {
@@ -91,7 +92,11 @@ func (s *SlackNotification) GetFmonUrl() string {
 func (s *SlackNotification) SendNotify(mbus domain.MBusMessageBody) {
 	message := s.buildSlackMessage(mbus)
 	cate := mbus.GetCategory()
+
 	if mbus.IsAlarm() {
+		if mbus.IsProcessStartupOrShutdown() && len(cate) == 0 {
+			cate = "deploy"
+		}
 		s.sendAlarm(message, cate)
 	} else {
 		s.sendEvent(message)
@@ -191,19 +196,17 @@ func (s *SlackNotification) isAlarmCategoryWritable(cate string) bool {
 	return true
 }
 
-func (s *SlackNotification) getAlarmCategoryUrl(cate string) string {
-	url := ""
+func (s *SlackNotification) getAlarmCategoryUrlAndChannel(cate string) (url string, channel string) {
 	if len(cate) == 0 {
-		return url
+		return
 	}
 
 	config, ok := s.alarmCategory[cate]
 	if !ok {
-		return url
+		return
 	}
 
-	url = config.Url
-	return url
+	return config.Url, config.Channel
 }
 
 func (s *SlackNotification) sendEvent(m map[string]interface{}) {
@@ -233,8 +236,13 @@ func (s *SlackNotification) sendAlarm(m map[string]interface{}, cate string) {
 		return
 	}
 
-	url := s.getAlarmCategoryUrl(cate)
+	url, channel := s.getAlarmCategoryUrlAndChannel(cate)
+
 	if len(url) > 0 {
+		if len(channel) > 0 {
+			m["channel"] = channel
+		}
+
 		b, err := json.Marshal(m)
 		if err != nil {
 			log.Warn("fail to build json : %s", err.Error())

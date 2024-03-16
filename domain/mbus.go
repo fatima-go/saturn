@@ -41,8 +41,9 @@ const (
 )
 
 const (
-	NotifyAlarm          = "ALARM"
-	ActionProcessStartup = "PROCESS_STARTUP"
+	NotifyAlarm           = "ALARM"
+	ActionProcessStartup  = "PROCESS_STARTUP"
+	ActionProcessShutdown = "PROCESS_SHUTDOWN"
 )
 
 type MessageNotify interface {
@@ -118,6 +119,14 @@ func (m MBusMessageBody) IsProcessStartup() bool {
 		return true
 	}
 	return false
+}
+
+func (m MBusMessageBody) IsProcessShutdown() bool {
+	return ActionProcessShutdown == m.Message[MessageKeyAction]
+}
+
+func (m MBusMessageBody) IsProcessStartupOrShutdown() bool {
+	return m.IsProcessStartup() || m.IsProcessShutdown()
 }
 
 func (m MBusMessageBody) GetCategory() string {
