@@ -21,11 +21,12 @@
 package service
 
 import (
-	"fmt"
-	"github.com/fatima-go/fatima-core/lib"
-	"github.com/fatima-go/saturn/domain"
 	"sync"
 	"time"
+
+	"github.com/fatima-go/fatima-core/lib"
+	log "github.com/fatima-go/fatima-log"
+	"github.com/fatima-go/saturn/domain"
 )
 
 const (
@@ -82,7 +83,7 @@ func clearEventMap() {
 	}
 
 	if len(removeIdList) > 0 {
-		//log.Info("clear %d old event", len(removeIdList))
-		fmt.Printf("clear %d old event", len(removeIdList))
+		log.Info("clear %d old event", len(removeIdList))
+		//fmt.Printf("clear %d old event", len(removeIdList))
 	}
 }
