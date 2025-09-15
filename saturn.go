@@ -29,7 +29,6 @@ import (
 func main() {
 	fatimaRuntime := runtime.GetFatimaRuntime()
 	applicationExecutor := service.NewFatimaApplicationExecutor(fatimaRuntime)
-	fatimaRuntime.Regist(engine.NewGrpcServer(fatimaRuntime, applicationExecutor))
-	//fatimaRuntime.Regist(engine.NewMbusReader(fatimaRuntime, applicationExecutor))
+	fatimaRuntime.Register(engine.NewGrpcServer(fatimaRuntime, applicationExecutor))
 	fatimaRuntime.Run()
 }
