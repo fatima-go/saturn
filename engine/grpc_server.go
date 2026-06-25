@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/reflection"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -41,6 +42,7 @@ import (
 const (
 	propPredefineSaturnPort = "var.saturn.port"
 	valueDefaultAddress     = ":4389"
+	grpcGracefulStopTimeout = 3 * time.Second
 )
 
 func NewGrpcServer(fatimaRuntime fatima.FatimaRuntime, applicationExecutor service.ApplicationExecutor) *GrpcServer {
@@ -55,6 +57,7 @@ type GrpcServer struct {
 	applicationExecutor service.ApplicationExecutor
 	listener            net.Listener
 	server              *grpc.Server
+	stopOnce            sync.Once
 	proto.UnimplementedFatimaMessageServiceServer
 }
 
@@ -100,11 +103,36 @@ func (g *GrpcServer) Bootup() {
 }
 
 func (g *GrpcServer) Goaway() {
+	log.Info("GrpcServer Goaway() : stop accepting new RPCs and drain in-flight")
+	g.gracefulStop()
 }
 
 func (g *GrpcServer) Shutdown() {
 	log.Info("GrpcServer Shutdown()")
-	g.server.Stop()
+	g.gracefulStop()
+}
+
+// gracefulStop stops the gRPC server, refusing new RPCs while letting in-flight
+// RPCs complete. If draining exceeds grpcGracefulStopTimeout it forces a hard stop.
+// Safe to call multiple times (e.g. Goaway followed by Shutdown).
+func (g *GrpcServer) gracefulStop() {
+	g.stopOnce.Do(func() {
+		if g.server == nil {
+			return
+		}
+		done := make(chan struct{})
+		go func() {
+			g.server.GracefulStop()
+			close(done)
+		}()
+		select {
+		case <-done:
+			log.Info("GrpcServer graceful stop completed")
+		case <-time.After(grpcGracefulStopTimeout):
+			log.Warn("GrpcServer graceful stop timeout after %v, forcing stop", grpcGracefulStopTimeout)
+			g.server.Stop()
+		}
+	})
 }
 
 func (g *GrpcServer) GetType() fatima.FatimaComponentType {
